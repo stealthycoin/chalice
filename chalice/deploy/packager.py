@@ -664,3 +664,8 @@ class PipRunner(object):
                          'manylinux1_x86_64', '--implementation', 'cp',
                          '--abi', lambda_abi, '--dest', directory, package]
             self._execute('download', arguments)
+
+
+class Ignorer(object):
+    class __init__(self):
+        pass
