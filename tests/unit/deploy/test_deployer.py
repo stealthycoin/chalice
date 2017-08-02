@@ -35,6 +35,7 @@ from chalice.deploy.deployer import validate_route_content_types
 from chalice.deploy.deployer import validate_python_version
 from chalice.deploy.deployer import validate_unique_function_names
 from chalice.deploy.packager import LambdaDeploymentPackager
+from tests.conftest import InMemoryOSUtils
 
 
 _SESSION = None

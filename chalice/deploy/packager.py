@@ -4,6 +4,7 @@ import hashlib
 import inspect
 import re
 import subprocess
+import fnmatch
 from email.parser import FeedParser
 from email.message import Message  # noqa
 from zipfile import ZipFile  # noqa
@@ -666,43 +667,120 @@ class PipRunner(object):
             self._execute('download', arguments)
 
 
-class ChaliceIgnoreRule(object):
-    def __init__(self, rule_text):
-        # type: (str) -> None
-        self._rule = self._parse_rule(rule_text)
-
-    def _parse_pkg_info_file(self, rule_text):
-        pass
-
-    def match(self, filepath):
-        """Check if a filepath mathces this ingore rule."""
-        # type: (str) -> bool
-        pass
-
-
 class ChaliceIgnore(object):
+    # Gitignore Rules
+    #
+    # 1) A blank line matches no files, so it can serve as a separator for
+    # readability.
+
+    # 2) A line starting with # serves as a comment. Put a backslash ("\")
+    # in front of the first hash for patterns that begin with a hash.
+
+    # 3) Trailing spaces are ignored unless they are quoted with backslash
+    # ("\").
+
+    # 4) An optional prefix "!" which negates the pattern; any matching
+    # file excluded by a previous pattern will become included again.
+    # It is not possible to re-include a file if a parent directory
+    # of that file is excluded. Git doesn’t list excluded directories
+    # for performance reasons, so any patterns on contained files have
+    # no effect, no matter where they are defined. Put a backslash ("\")
+    # in front of the first "!" for patterns that begin with a literal "!",
+    # for example, "\!important!.txt".
+
+    # 5) If the pattern ends with a slash, it is removed for the purpose of
+    # the following description, but it would only find a match with a
+    # directory. In other words, foo/ will match a directory foo and paths
+    # underneath it, but will not match a regular file or a symbolic link
+    # foo (this is consistent with the way how pathspec works in general in
+    # Git).
+
+    # 6) If the pattern does not contain a slash /, Git treats it as a shell
+    # glob pattern and checks for a match against the pathname relative to
+    # the location of the .gitignore file (relative to the toplevel of the
+    # work tree if not from a .gitignore file).
+
+    # 7) Otherwise, Git treats the pattern as a shell glob suitable for
+    # consumption by fnmatch(3) with the FNM_PATHNAME flag: wildcards in
+    # the pattern will not match a / in the pathname. For example,
+    # "Documentation/*.html" matches "Documentation/git.html" but not
+    # "Documentation/ppc/ppc.html" or "tools/perf/Documentation/perf.html".
+
+    # 8) A leading slash matches the beginning of the pathname. For example,
+    # "/*.c" matches "cat-file.c" but not "mozilla-sha1/sha1.c".
+
+    # 9) Two consecutive asterisks ("**") in patterns matched against full
+    # pathname may have special meaning:
+
+    # 10) A leading "**" followed by a slash means match in all directories.
+    # For example, "**/foo" matches file or directory "foo" anywhere, the
+    # same as pattern "foo". "**/foo/bar" matches file or directory "bar"
+    # anywhere that is directly under directory "foo".
+
+    # 11) A trailing "/**" matches everything inside. For example, "abc/**"
+    # matches all files inside directory "abc", relative to the location
+    # of the .gitignore file, with infinite depth.
+
+    # 12) A slash followed by two consecutive asterisks then a slash matches
+    # zero or more directories. For example, "a/**/b" matches "a/b",
+    # "a/x/b", "a/x/y/b" and so on.
+
+    # 13) Other consecutive asterisks are considered invalid.
     def __init__(self, filepath, osutils=None):
         # type: (str, Optional[OSUtils]) -> None
         if osutils is None:
             osutils = OSUtils()
         self._osutils = osutils
-        self._rules = self._create_rules_from_file(filepath)
+        self._ignore_rules = self._create_rules_from_file(filepath)
+
+    def _create_regex_from_rule(self, rule):
+        expression = ['^']
+        # To implement rule 4 if if an expression starts with a ! it invert
+        # the following rule.
+        invert = False
+        if rule.startswith('!'):
+            invert = True
+            rule = rule[1:]
+
+        expression.append('$')
+        expression = ''.join(expression)
+        return re.compile(expression)
 
     def _create_rules_from_file(self, filepath):
         # type: (str) -> List[ChaliceIgnoreRule]
         if not self._osutils.file_exists(filepath):
             return []
         rule_file_content = self._osutils.get_file_contents(filepath)
-        lines = rule_file_content.split()
+        lines = rule_file_content.split('\n')
 
         # Build up a set of rules that are nonblank and do not start with a #
-        return [ChaliceIgnoreRule(line) for line
-                in lines if not line.strip().startswith('#')]
+        # this implements rules 1 and 2.
+        return [self._create_regex_from_rule(line) for line in lines
+                if line and not line.strip().startswith('#')]
+
+    def _match(self, filepath, rule):
+        """Check if a rule matches a given filepath."""
+        elif rule.startswith('\\'):
+            # Get rid of leading backslash that can be used to excape a ! or a #.
+            rule = rule[1:]
+        if '/' not in rule:
+            # To implement rule 7 if there is no / in the pattern then it
+            # should be matched according to fnmatch()
+            does_match = fnmatch.fnmatch(filepath, rule)
+        else:
+            # Things get a litte more complex if there are / in the pattern.
+            # Now there are a lot of special rules regarding * and ** between path
+            # components. We will build up a regular expression to match this case.
+            components = rule.split('/')
+            does_match = False
+        if invert:
+            return not does_match
+        return does_match
 
     def match(self, filepath):
         """Check if a filepath matches any any ignore rule."""
         # type: (str) -> bool
-        for rule in self._rules:
-            if rule.match(filepath):
+        for ignore_rule in self._ignore_rules:
+            if self._match(filepath, ignore_rule):
                 return True
         return False
