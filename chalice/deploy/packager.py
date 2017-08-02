@@ -666,6 +666,43 @@ class PipRunner(object):
             self._execute('download', arguments)
 
 
-class Ignorer(object):
-    class __init__(self):
+class ChaliceIgnoreRule(object):
+    def __init__(self, rule_text):
+        # type: (str) -> None
+        self._rule = self._parse_rule(rule_text)
+
+    def _parse_pkg_info_file(self, rule_text):
         pass
+
+    def match(self, filepath):
+        """Check if a filepath mathces this ingore rule."""
+        # type: (str) -> bool
+        pass
+
+
+class ChaliceIgnore(object):
+    def __init__(self, filepath, osutils=None):
+        # type: (str, Optional[OSUtils]) -> None
+        if osutils is None:
+            osutils = OSUtils()
+        self._osutils = osutils
+        self._rules = self._create_rules_from_file(filepath)
+
+    def _create_rules_from_file(self, filepath):
+        # type: (str) -> List[ChaliceIgnoreRule]
+        if not self._osutils.file_exists(filepath):
+            return []
+        rule_file_content = self._osutils.get_file_contents(filepath)
+        lines = rule_file_content.split()
+
+        # Build up a set of rules that are nonblank and do not start with a #
+        return [ChaliceIgnoreRule(line) for line
+                in lines if not line.strip().startswith('#')]
+
+    def match(self, filepath):
+        """Check if a filepath matches any any ignore rule."""
+        # type: (str) -> bool
+        for rule in self._rules:
+            if rule.match(filepath):
+                return True
+        return False
