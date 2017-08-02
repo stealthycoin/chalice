@@ -15,7 +15,9 @@ from chalice.deploy.packager import InvalidSourceDistributionNameError
 from chalice.deploy.packager import SubprocessPip
 from chalice.deploy.packager import NoSuchPackageError
 from chalice.deploy.packager import PackageDownloadError
+from chalice.deploy.packager import ChaliceIgnore
 from tests.conftest import FakePipCall
+from tests.conftest import InMemoryOSUtils
 
 
 class FakePip(object):
@@ -48,6 +50,11 @@ def pip_runner():
 @pytest.fixture
 def osutils():
     return OSUtils()
+
+
+@pytest.fixture
+def mem_osutils():
+    return InMemoryOSUtils()
 
 
 @pytest.fixture
@@ -334,3 +341,37 @@ class TestSdistMetadataFetcher(object):
             with pytest.raises(InvalidSourceDistributionNameError):
                 name, version = sdist_reader.get_package_name_and_version(
                     filepath)
+
+
+class TestIgnore(object):
+    _FILES = [
+        'foo.jpg',
+        'bar.jpg',
+        'foo.png',
+        'bar.png',
+        'foo.tiff',
+        'bar.tiff',
+        'nested/foo.jpg',
+        'nested/bar.png',
+    ]
+
+    def test_no_file_makes_no_ignore_rules(self, osutils):
+        ignore = ChaliceIgnore('.chaliceignore', osutils)
+        assert ignore._ignore_rules == []
+
+    def test_ignore_jpgs(self, mem_osutils):
+        mem_osutils.set_file_contents('.chaliceignore',
+                                      '*.jpg', binary=False)
+        ignore = ChaliceIgnore('.chaliceignore', mem_osutils)
+        ignored = [filename for filename in self._FILES
+                   if ignore.match(filename)]
+        assert ignored == ['foo.jpg', 'bar.jpg', 'nested/foo.jpg']
+
+    def test_ignore_jpeg_and_png(self, mem_osutils):
+        mem_osutils.set_file_contents('.chaliceignore',
+                                      '*.jpg\n*.png', binary=False)
+        ignore = ChaliceIgnore('.chaliceignore', mem_osutils)
+        ignored = [filename for filename in self._FILES
+                   if ignore.match(filename)]
+        assert ignored == ['foo.jpg', 'bar.jpg', 'foo.png', 'bar.png',
+                           'nested/foo.jpg', 'nested/bar.png']

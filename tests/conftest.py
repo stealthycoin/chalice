@@ -191,3 +191,19 @@ def no_local_config(monkeypatch):
     monkeypatch.setenv('AWS_CONFIG_FILE', '/tmp/asdfasdfaf/does/not/exist')
     monkeypatch.setenv('AWS_SHARED_CREDENTIALS_FILE',
                        '/tmp/asdfasdfaf/does/not/exist2')
+
+
+class InMemoryOSUtils(object):
+    def __init__(self, filemap=None):
+        if filemap is None:
+            filemap = {}
+        self.filemap = filemap
+
+    def file_exists(self, filename):
+        return filename in self.filemap
+
+    def get_file_contents(self, filename, binary=True):
+        return self.filemap[filename]
+
+    def set_file_contents(self, filename, contents, binary=True):
+        self.filemap[filename] = contents
