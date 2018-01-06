@@ -52,7 +52,7 @@ def config():
 @pytest.fixture()
 def unused_tcp_port():
     with contextlib.closing(socket.socket()) as sock:
-        sock.bind(('localhost', 0))
+        sock.bind(('127.0.0.1', 0))
         return sock.getsockname()[1]
 
 
