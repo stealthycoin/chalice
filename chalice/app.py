@@ -1,4 +1,5 @@
 """Chalice app and routing code."""
+import io
 import re
 import sys
 import os
@@ -492,6 +493,23 @@ class Chalice(object):
             level = logging.ERROR
         self.log.setLevel(level)
 
+    def pipeline_function(self, name=None, **kwargs):
+        def _register_pipeline_function(pipeline_function):
+            pipeline_name = name
+            if pipeline_name is None:
+                pipeline_name = pipeline_function.__name__
+            if kwargs:
+                raise TypeError(
+                    'TypeError: pipeline_function() got unexpected keyword '
+                    'arguments: %s' % ', '.join(list(kwargs)))
+            wrapper = PipelineFunction(
+                pipeline_function, name=name,
+                handler_string='app.%s' % pipeline_function.__name__
+            )
+            self.pure_lambda_functions.append(wrapper)
+            return wrapper
+        return _register_pipeline_function
+
     def authorizer(self, name=None, **kwargs):
         def _register_authorizer(auth_func):
             auth_name = name
@@ -914,3 +932,92 @@ class LambdaFunction(object):
 
     def __call__(self, event, context):
         return self.func(event, context)
+
+
+class PipelineFunction(LambdaFunction):
+    def __init__(self, *args, **kwargs):
+        super(PipelineFunction, self).__init__(*args, **kwargs)
+
+    def __call__(self, event, context):
+        try:
+            job_id = event['CodePipeline.job']['id']
+            job_data = event['CodePipeline.job']['data']
+            user_parameters = self._get_user_parameters(job_data)
+            input_artifacts = self._download_input_artifacts(job_data)
+            output_artifacts = self.func(input_artifacts, user_parameters)
+            self._upload_output_artifacts(output_artifacts)
+            self._send_success(job_id)
+        except Exception as e:
+            self._send_failure(job_id, str(e))
+
+    def _get_user_parameters(self, job_data):
+        configuration = job_data['actionConfiguration']['configuration']
+        user_parameters = configuration['UserParameters']
+        decoded_parameters = json.loads(user_parameters)
+        return decoded_parameters
+
+    def _download_input_artifacts(self, job_data):
+        s3_client = self._create_s3_client(job_data)
+        artifacts = {}
+        for artifact in job_data['inputArtifacts']:
+            name = artifact['name']
+            bucket = artifact['location']['s3Location']['bucketName']
+            key = artifact['location']['s3Location']['objectKey']
+            args = {
+                'Key': key,
+                'Bucket': bucket
+            }
+            response = s3_client.get_object(**args)
+            bytes_body = io.BytesIO(response['Body'].read())
+        artifacts[name] = bytes_body
+        return artifacts
+
+    def _create_s3_client(job_data):
+        import boto3
+        import botocore
+        key_id = job_data['artifactCredentials']['accessKeyId']
+        key_secret = job_data['artifactCredentials']['secretAccessKey']
+        session_token = job_data['artifactCredentials']['sessionToken']
+
+        session = boto3.Session(
+            aws_access_key_id=key_id,
+            aws_secret_access_key=key_secret,
+            aws_session_token=session_token
+        )
+        client = session.client(
+            's3',
+            config=botocore.client.Config(signature_version='s3v4')
+        )
+        return client
+
+    def _upload_output_artifacts(self, job_data, output_artifacts):
+        s3_client = self._create_s3_client(job_data)
+        for artifact in job_data['outputArtifacts']:
+            name = artifact['name']
+            bucket = artifact['location']['s3Location']['bucketName']
+            key = artifact['location']['s3Location']['objectKey']
+            data = output_artifacts[name]
+            data.seek(0)
+            s3_client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=data
+            )
+
+    def _send_success(self, job_id):
+        import boto3
+        code_pipeline = boto3.client('codepipeline')
+        code_pipeline.put_job_success_result(
+            jobId=job_id,
+        )
+
+    def _send_failure(self, job_id, error):
+        import boto3
+        code_pipeline = boto3.client('codepipeline')
+        code_pipeline.put_job_failure_result(
+            jobId=job_id,
+            failureDetails={
+                'type': 'JobFailed',
+                'message': error
+            }
+        )
