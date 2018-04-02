@@ -493,17 +493,13 @@ class Chalice(object):
             level = logging.ERROR
         self.log.setLevel(level)
 
-    def pipeline_function(self, name=None, **kwargs):
+    def pipeline_function(self, name=None):
         def _register_pipeline_function(pipeline_function):
             pipeline_name = name
             if pipeline_name is None:
                 pipeline_name = pipeline_function.__name__
-            if kwargs:
-                raise TypeError(
-                    'TypeError: pipeline_function() got unexpected keyword '
-                    'arguments: %s' % ', '.join(list(kwargs)))
             wrapper = PipelineFunction(
-                pipeline_function, name=name,
+                pipeline_function, name=pipeline_name,
                 handler_string='app.%s' % pipeline_function.__name__
             )
             self.pure_lambda_functions.append(wrapper)
@@ -934,9 +930,11 @@ class LambdaFunction(object):
         return self.func(event, context)
 
 
-class PipelineFunction(LambdaFunction):
-    def __init__(self, *args, **kwargs):
-        super(PipelineFunction, self).__init__(*args, **kwargs)
+class PipelineFunction(object):
+    def __init__(self, func, name, handler_string):
+        self.func = func
+        self.name = name
+        self.handler_string = handler_string
 
     def __call__(self, event, context):
         try:
@@ -945,15 +943,19 @@ class PipelineFunction(LambdaFunction):
             user_parameters = self._get_user_parameters(job_data)
             input_artifacts = self._download_input_artifacts(job_data)
             output_artifacts = self.func(input_artifacts, user_parameters)
-            self._upload_output_artifacts(output_artifacts)
+            self._upload_output_artifacts(job_data, output_artifacts)
             self._send_success(job_id)
-        except Exception as e:
-            self._send_failure(job_id, str(e))
+        except Exception:
+            tb = traceback.format_exc()
+            self._send_failure(job_id, tb)
 
     def _get_user_parameters(self, job_data):
         configuration = job_data['actionConfiguration']['configuration']
-        user_parameters = configuration['UserParameters']
-        decoded_parameters = json.loads(user_parameters)
+        user_parameters = configuration.get('UserParameters')
+        if user_parameters:
+            decoded_parameters = json.loads(user_parameters)
+        else:
+            decoded_parameters = {}
         return decoded_parameters
 
     def _download_input_artifacts(self, job_data):
@@ -961,6 +963,7 @@ class PipelineFunction(LambdaFunction):
         artifacts = {}
         for artifact in job_data['inputArtifacts']:
             name = artifact['name']
+            print(artifact['location'])
             bucket = artifact['location']['s3Location']['bucketName']
             key = artifact['location']['s3Location']['objectKey']
             args = {
@@ -969,12 +972,12 @@ class PipelineFunction(LambdaFunction):
             }
             response = s3_client.get_object(**args)
             bytes_body = io.BytesIO(response['Body'].read())
-        artifacts[name] = bytes_body
+            artifacts[name] = bytes_body
         return artifacts
 
-    def _create_s3_client(job_data):
+    def _create_s3_client(self, job_data):
         import boto3
-        import botocore
+        from botocore.client import Config
         key_id = job_data['artifactCredentials']['accessKeyId']
         key_secret = job_data['artifactCredentials']['secretAccessKey']
         session_token = job_data['artifactCredentials']['sessionToken']
@@ -986,7 +989,7 @@ class PipelineFunction(LambdaFunction):
         )
         client = session.client(
             's3',
-            config=botocore.client.Config(signature_version='s3v4')
+            config=Config(signature_version='s3v4')
         )
         return client
 
@@ -997,11 +1000,13 @@ class PipelineFunction(LambdaFunction):
             bucket = artifact['location']['s3Location']['bucketName']
             key = artifact['location']['s3Location']['objectKey']
             data = output_artifacts[name]
-            data.seek(0)
+            if hasattr(data, 'seek'):
+                data.seek(0)
             s3_client.put_object(
                 Bucket=bucket,
                 Key=key,
-                Body=data
+                Body=data,
+                ServerSideEncryption="aws:kms",
             )
 
     def _send_success(self, job_id):
