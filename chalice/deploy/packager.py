@@ -2,6 +2,7 @@ import sys
 import hashlib
 import inspect
 import re
+import io
 import subprocess
 from email.parser import FeedParser
 from email.message import Message  # noqa
@@ -16,6 +17,7 @@ from chalice.utils import OSUtils
 from chalice.utils import UI  # noqa
 from chalice.constants import MISSING_DEPENDENCIES_TEMPLATE
 
+import boto3
 import chalice
 from chalice import app
 
@@ -67,6 +69,7 @@ class LambdaDeploymentPackager(object):
         return self._osutils.joinpath(project_dir, 'requirements.txt')
 
     def create_deployment_package(self, project_dir, python_version,
+                                  remote_packages, remote_package_s3_bucket,
                                   package_filename=None):
         # type: (str, str, Optional[str]) -> str
         self._ui.write("Creating deployment package.\n")
@@ -262,12 +265,17 @@ class DependencyBuilder(object):
         'sqlalchemy'
     }
 
-    def __init__(self, osutils, pip_runner=None):
+    def __init__(self, osutils, pip_runner=None, remote_packages=None,
+                 remote_package_s3_bucket=None):
         # type: (OSUtils, Optional[PipRunner]) -> None
         self._osutils = osutils
         if pip_runner is None:
             pip_runner = PipRunner(SubprocessPip(osutils))
         self._pip = pip_runner
+        if remote_packages is None:
+            remote_packages = []
+        self._remote_packages = remote_packages
+        self._remote_package_s3_bucket = remote_package_s3_bucket
 
     def _is_compatible_wheel_filename(self, filename):
         # type: (str) -> bool
@@ -466,8 +474,20 @@ class DependencyBuilder(object):
         self._osutils.makedirs(dst_dir)
         for wheel in wheels:
             zipfile_path = self._osutils.joinpath(src_dir, wheel.filename)
-            self._osutils.extract_zipfile(zipfile_path, dst_dir)
-            self._install_purelib_and_platlib(wheel, dst_dir)
+            if wheel.name == self._remote_packages:
+                self._upload_package(wheel.name, zipfile_path)
+            else:
+                self._osutils.extract_zipfile(zipfile_path, dst_dir)
+                self._install_purelib_and_platlib(wheel, dst_dir)
+
+    def _upload_package(self, package_name, wheel_path):
+        content = open(wheel_path, 'rb').read()
+        s3_client = boto3.client('s3')
+        s3_client.put_object(
+            Bucket=self._remote_package_s3_bucket,
+            Key='%s.zip' % package_name,
+            Body=io.BytesIO(content)
+        )
 
     def build_site_packages(self, requirements_filepath, target_directory):
         # type: (str, str) -> None

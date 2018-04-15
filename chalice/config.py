@@ -109,6 +109,14 @@ class Config(object):
                    user_provided_params=kwargs.copy())
 
     @property
+    def remote_packages(self):
+        return self._chain_lookup('remote_package')
+
+    @property
+    def remote_package_s3_bucket(self):
+        return self._chain_lookup('remote_package_s3_bucket')
+
+    @property
     def profile(self):
         # type: () -> str
         return self._chain_lookup('profile')

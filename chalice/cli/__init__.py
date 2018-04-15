@@ -123,15 +123,29 @@ def run_local_server(factory, host, port, stage, env):
               type=int,
               help=('Overrides the default botocore connection '
                     'timeout.'))
+@click.option('--remote-package',
+              type=str,
+              help=('List of packages to deploy remotely. This means '
+                    'they will not be included in the packge sent to Lambda '
+                    'ideal for large dependencies that exceed the size limit. '
+                    'Note that this will negativly affect load times.'))
+@click.option('--remote-package-s3-bucket',
+              type=str,
+              help=('This is the bucket where packages will be loaded from '
+                    'if the --remote-pacakge list has any contents. This '
+                    'bucket needs to be writable by the account doing the '
+                    'deployment. And readable by the Lambda function.'))
 @click.pass_context
 def deploy(ctx, autogen_policy, profile, api_gateway_stage, stage,
-           connection_timeout):
+           connection_timeout, remote_package, remote_package_s3_bucket):
     # type: (click.Context, Optional[bool], str, str, str, int) -> None
     factory = ctx.obj['factory']  # type: CLIFactory
     factory.profile = profile
     config = factory.create_config_obj(
         chalice_stage_name=stage, autogen_policy=autogen_policy,
         api_gateway_stage=api_gateway_stage,
+        remote_package=remote_package,
+        remote_package_s3_bucket=remote_package_s3_bucket
     )
     session = factory.create_botocore_session(
         connection_timeout=connection_timeout)

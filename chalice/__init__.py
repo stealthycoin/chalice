@@ -4,7 +4,9 @@ from chalice.app import (
     NotFoundError, ConflictError, TooManyRequestsError, Response, CORSConfig,
     CustomAuthorizer, CognitoUserPoolAuthorizer, IAMAuthorizer,
     UnprocessableEntityError,
-    AuthResponse, AuthRoute, Cron, Rate, __version__ as chalice_version
+    AuthResponse, AuthRoute, Cron, Rate, initialize_import_hooks,
+    __version__ as chalice_version
 )
 # We're reassigning version here to keep mypy happy.
 __version__ = chalice_version
+initialize_import_hooks()

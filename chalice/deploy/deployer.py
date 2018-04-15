@@ -239,7 +239,7 @@ def create_default_deployer(session, config, ui):
         application_builder=ApplicationGraphBuilder(),
         deps_builder=DependencyBuilder(),
         build_stage=create_build_stage(
-            osutils, UI(), TemplatedSwaggerGenerator(),
+            osutils, UI(), TemplatedSwaggerGenerator(), config
         ),
         plan_stage=PlanStage(
             osutils=osutils, remote_state=RemoteState(
@@ -251,13 +251,15 @@ def create_default_deployer(session, config, ui):
     )
 
 
-def create_build_stage(osutils, ui, swagger_gen):
+def create_build_stage(osutils, ui, swagger_gen, config):
     # type: (OSUtils, UI, SwaggerGenerator) -> BuildStage
     pip_runner = PipRunner(pip=SubprocessPip(osutils=osutils),
                            osutils=osutils)
     dependency_builder = PipDependencyBuilder(
         osutils=osutils,
-        pip_runner=pip_runner
+        pip_runner=pip_runner,
+        remote_packages=config.remote_packages,
+        remote_package_s3_bucket=config.remote_package_s3_bucket
     )
     build_stage = BuildStage(
         steps=[
@@ -629,7 +631,8 @@ class DeploymentPackager(BaseDeployStep):
         # type: (Config, models.DeploymentPackage) -> None
         if isinstance(resource.filename, models.Placeholder):
             zip_filename = self._packager.create_deployment_package(
-                config.project_dir, config.lambda_python_version
+                config.project_dir, config.lambda_python_version,
+                config.remote_packages, config.remote_package_s3_bucket
             )
             resource.filename = zip_filename
 

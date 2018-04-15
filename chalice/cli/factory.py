@@ -102,13 +102,15 @@ class CLIFactory(object):
         return deployer.DeploymentReporter(ui=ui)
 
     def create_config_obj(self, chalice_stage_name=DEFAULT_STAGE_NAME,
-                          autogen_policy=None,
-                          api_gateway_stage=None):
+                          autogen_policy=None, api_gateway_stage=None,
+                          remote_package=None, remote_package_s3_bucket=None):
         # type: (str, Optional[bool], str) -> Config
         user_provided_params = {}  # type: Dict[str, Any]
         default_params = {'project_dir': self.project_dir,
                           'api_gateway_stage': DEFAULT_APIGATEWAY_STAGE_NAME,
-                          'autogen_policy': True}
+                          'autogen_policy': True,
+                          'remote_package': [],
+                          'remote_package_s3_bucket': None}
         try:
             config_from_disk = self.load_project_config()
         except (OSError, IOError):
@@ -127,6 +129,11 @@ class CLIFactory(object):
             user_provided_params['profile'] = self.profile
         if api_gateway_stage is not None:
             user_provided_params['api_gateway_stage'] = api_gateway_stage
+        if remote_package is not None:
+            user_provided_params['remote_package'] = remote_package
+        if remote_package_s3_bucket is not None:
+            user_provided_params['remote_package_s3_bucket'] = \
+                remote_package_s3_bucket
         config = Config(chalice_stage=chalice_stage_name,
                         user_provided_params=user_provided_params,
                         config_from_disk=config_from_disk,

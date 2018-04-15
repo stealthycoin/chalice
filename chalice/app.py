@@ -7,7 +7,11 @@ import json
 import traceback
 import decimal
 import base64
+import zipfile
+import boto3
+import io
 from collections import defaultdict, Mapping
+from importlib.util import find_spec
 
 __version__ = '1.2.2'
 
@@ -50,6 +54,52 @@ def _matches_content_type(content_type, valid_content_types):
     if ';' in content_type:
         content_type = content_type.split(';', 1)[0].strip()
     return content_type in valid_content_types
+
+
+class LoadRemotePackage(object):
+    def __init__(self, bucket_name, names):
+        self._bucket_name = bucket_name
+        self._names = names
+        self.local_site_packages = self._create_local_site_packages()
+
+    def _create_local_site_packages(self):
+        local_path = os.path.abspath(os.path.join(
+            os.sep, 'tmp', 'site-packages'))
+        if not os.path.exists(local_path):
+            os.mkdir(local_path)
+        return local_path
+
+    def find_module(self, fullname, path=None):
+        import botocore.exceptions
+        basename = fullname.split('.')[0]
+        if basename not in self._names:
+            return None
+        try:
+            self._download_remote_module(basename)
+        except botocore.exceptions.ClientError:
+            return None
+        spec = find_spec(fullname, path)
+        return spec.loader
+
+    def _download_remote_module(self, module_name):
+        s3_client = boto3.client('s3')
+        response = s3_client.get_object(
+            Bucket=self._bucket_name,
+            Key='%s.zip' % module_name,
+        )
+        body = response['Body']
+        raw_body = io.BytesIO(body.read())
+        self._write_to_disk(module_name, raw_body)
+
+    def _write_to_disk(self, module_name, raw_body):
+        with zipfile.ZipFile(raw_body, 'r') as zfile:
+            zfile.extractall(self.local_site_packages)
+
+
+def initialize_import_hooks():
+    remote_loader = LoadRemotePackage('remote-site-packages', ['cryptography'])
+    sys.meta_path.append(remote_loader)
+    sys.path.append(remote_loader.local_site_packages)
 
 
 class ChaliceError(Exception):
