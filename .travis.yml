@@ -8,7 +8,7 @@ matrix:
     env: TEST_TYPE=prcheck-py2 HYPOTHESIS_PROFILE=ci
 install:
   - pip install -r requirements-dev.txt -r requirements-docs.txt
-  - pip install -e .
+  - pip install -e ".[watchdog]"
 script:
   - env
   - make $TEST_TYPE

@@ -1,11 +1,21 @@
 import mock
 import threading
 
+import pytest
+
 from chalice.cli import reloader
+from chalice.watcher.stat import StatFileWatcher
+from tests.conftest import watchdog_only
 
 
 DEFAULT_DELAY = 0.1
 MAX_TIMEOUT = 5.0
+
+
+@pytest.fixture
+def watchdog_factory():
+    from chalice.watcher.eventbased import WatchdogFileWatcher
+    return WatchdogFileWatcher
 
 
 def modify_file_after_n_seconds(filename, contents, delay=DEFAULT_DELAY):
@@ -21,26 +31,47 @@ def modify_file(filename, contents):
         f.write(contents)
 
 
-def assert_reload_happens(root_dir, when_modified_file):
+def assert_reload_happens(root_dir, when_modified_file, watcher):
     http_thread = mock.Mock(spec=reloader.HTTPServerThread)
-    p = reloader.WorkerProcess(http_thread)
+    p = reloader.WorkerProcess(http_thread, watcher)
     modify_file_after_n_seconds(when_modified_file, 'contents')
     rc = p.main(root_dir, MAX_TIMEOUT)
     assert rc == reloader.RESTART_REQUEST_RC
 
 
-def test_can_reload_when_file_created(tmpdir):
-    top_level_file = str(tmpdir.join('foo'))
-    assert_reload_happens(str(tmpdir), when_modified_file=top_level_file)
+@watchdog_only
+class TestWatchdogFileWatcher(object):
+    def test_can_reload_when_file_created(self, tmpdir, watchdog_factory):
+        top_level_file = str(tmpdir.join('foo'))
+        assert_reload_happens(str(tmpdir), when_modified_file=top_level_file,
+                              watcher=watchdog_factory())
+
+    def test_can_reload_when_subdir_file_created(self, tmpdir,
+                                                 watchdog_factory):
+        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.txt'))
+        assert_reload_happens(str(tmpdir), when_modified_file=subdir_file,
+                              watcher=watchdog_factory())
+
+    def test_rc_0_when_no_file_modified(self, tmpdir, watchdog_factory):
+        http_thread = mock.Mock(spec=reloader.HTTPServerThread)
+        p = reloader.WorkerProcess(http_thread, watchdog_factory())
+        rc = p.main(str(tmpdir), timeout=0.2)
+        assert rc == 0
 
 
-def test_can_reload_when_subdir_file_created(tmpdir):
-    subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.txt'))
-    assert_reload_happens(str(tmpdir), when_modified_file=subdir_file)
+class TestStatFileWatcher(object):
+    def test_can_reload_when_file_created(self, tmpdir):
+        top_level_file = str(tmpdir.join('foo'))
+        assert_reload_happens(str(tmpdir), when_modified_file=top_level_file,
+                              watcher=StatFileWatcher())
 
+    def test_can_reload_when_subdir_file_created(self, tmpdir):
+        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.txt'))
+        assert_reload_happens(str(tmpdir), when_modified_file=subdir_file,
+                              watcher=StatFileWatcher())
 
-def test_rc_0_when_no_file_modified(tmpdir):
-    http_thread = mock.Mock(spec=reloader.HTTPServerThread)
-    p = reloader.WorkerProcess(http_thread)
-    rc = p.main(str(tmpdir), timeout=0.2)
-    assert rc == 0
+    def test_rc_0_when_no_file_modified(self, tmpdir):
+        http_thread = mock.Mock(spec=reloader.HTTPServerThread)
+        p = reloader.WorkerProcess(http_thread, StatFileWatcher())
+        rc = p.main(str(tmpdir), timeout=0.2)
+        assert rc == 0

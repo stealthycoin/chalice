@@ -9,7 +9,8 @@ Next Release (TBD)
   (`#858 <https://github.com/aws/chalice/pull/858>`)
 * Add support for connecting lambda functions to S3 events
   (`#855 <https://github.com/aws/chalice/issues/855>`)
-
+* Remove hard dependency on watchdog
+  (`#867 <https://github.com/aws/chalice/issues/867>`)
 
 1.3.0
 =====

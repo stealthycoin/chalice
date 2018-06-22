@@ -27,8 +27,9 @@ from chalice.utils import getting_started_prompt, UI, serialize_to_json
 from chalice.constants import CONFIG_VERSION, TEMPLATE_APP, GITIGNORE
 from chalice.constants import DEFAULT_STAGE_NAME
 from chalice.constants import DEFAULT_APIGATEWAY_STAGE_NAME
-from chalice.local import LocalDevServer  # noqa
 from chalice.constants import DEFAULT_HANDLER_NAME
+from chalice.local import LocalDevServer  # noqa
+from chalice.compat import get_available_file_watcher
 
 
 def create_new_project_skeleton(project_name, profile=None):
@@ -101,10 +102,11 @@ def local(ctx, host='127.0.0.1', port=8000, stage=DEFAULT_STAGE_NAME,
     logging.basicConfig(
         stream=sys.stdout, level=logging.INFO, format='%(message)s')
     if autoreload:
+        file_watcher = get_available_file_watcher()
         project_dir = factory.create_config_obj(
             chalice_stage_name=stage).project_dir
         rc = reloader.run_with_reloader(
-            server_factory, os.environ, project_dir)
+            server_factory, os.environ, project_dir, file_watcher)
         # Click doesn't sys.exit() with the RC this function.  The
         # recommended way to do this is to use sys.exit() directly,
         # see: https://github.com/pallets/click/issues/747

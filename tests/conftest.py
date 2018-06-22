@@ -1,9 +1,24 @@
-import zipfile
-from collections import namedtuple
-
 import botocore.session
 from botocore.stub import Stubber
+import pytest
 from pytest import fixture
+from chalice.compat import get_available_file_watcher
+
+
+try:
+    from chalice.watcher.eventbased import WatchdogFileWatcher
+    WATCHDOG_AVAILABLE = isinstance(
+        get_available_file_watcher(),
+        WatchdogFileWatcher
+    )
+except ImportError:
+    WATCHDOG_AVAILABLE = False
+
+
+watchdog_only = pytest.mark.skipif(
+    not WATCHDOG_AVAILABLE,
+    reason="Watchdog not installed."
+)
 
 
 def pytest_addoption(parser):

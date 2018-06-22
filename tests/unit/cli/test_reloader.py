@@ -3,7 +3,6 @@ from subprocess import Popen
 
 import mock
 import pytest
-from watchdog.events import FileSystemEvent, DirModifiedEvent
 
 from chalice.cli import reloader
 from chalice.local import LocalDevServer
@@ -11,7 +10,8 @@ from chalice.local import LocalDevServer
 
 # NOTE: Most of the reloader module relies on threads, subprocesses,
 # and process exiting with specific return codes.  This is quite difficult
-# to unit test, so the more realistic tests are over in function/test_local.py.
+# to unit test, so the more realistic tests are over in
+# functional/test_local.py.
 class RecordingPopen(object):
     def __init__(self, process, return_codes=None):
         self.process = process
@@ -31,17 +31,8 @@ class RecordingPopen(object):
 def test_restarter_triggers_event():
     restart_event = threading.Event()
     restarter = reloader.Restarter(restart_event)
-    app_modified = FileSystemEvent(src_path='./app.py')
-    restarter.on_any_event(app_modified)
+    restarter()
     assert restart_event.is_set()
-
-
-def test_directory_events_ignored():
-    restart_event = threading.Event()
-    restarter = reloader.Restarter(restart_event)
-    app_modified = DirModifiedEvent(src_path='./')
-    restarter.on_any_event(app_modified)
-    assert not restart_event.is_set()
 
 
 def test_http_server_thread_starts_server_and_shutsdown():

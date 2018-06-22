@@ -248,6 +248,15 @@ class OSUtils(object):
         # type: () -> int
         return subprocess.PIPE
 
+    def mtime(self, path):
+        # type: (str) -> int
+        try:
+            return os.stat(path).st_mtime
+        except OSError:
+            # We just reraise the error. Its written this way just for
+            # awareness since its not documented in the type.
+            raise
+
 
 def getting_started_prompt(prompter):
     # type: (Any) -> bool
