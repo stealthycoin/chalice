@@ -2,7 +2,7 @@ import botocore.session
 from botocore.stub import Stubber
 import pytest
 from pytest import fixture
-from chalice.compat import get_available_file_watcher
+from chalice.watcher import get_available_file_watcher
 
 
 try:

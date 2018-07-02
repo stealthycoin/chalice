@@ -1,3 +1,5 @@
+import os
+import sys
 import threading
 import time
 
@@ -16,27 +18,40 @@ class StatFileObserver(object):
 
     def check(self):
         # type: () -> Set[str]
-        return self._check_dir(self._path)
+        # TODO: this is currently broken and refreshes every cycle
+        updated = set([])
+        for filepath in self._iter_module_files():
+            if self._check_file(filepath):
+                needs_update = True
+        return needs_update
 
-    def _check_dir(self, directory):
-        # type: (str) -> Set[str]
-        updated = set()  # type: Set[str]
-        subdirectories_to_check = []  # type: List[str]
 
-        directory_entries = self._osutils.get_directory_contents(directory)
-        for entry in directory_entries:
-            full_path = self._osutils.joinpath(directory, entry)
-
-            if self._osutils.file_exists(full_path):
-                updated.update(self._check_file(full_path))
-
-            if self._osutils.directory_exists(full_path):
-                subdirectories_to_check.append(full_path)
-
-        for dir_path in subdirectories_to_check:
-            updated.update(self._check_dir(dir_path))
-
-        return updated
+    def _iter_module_files(self):
+        """This iterates over all relevant Python files.  It goes through all
+        loaded files from modules, all files in folders of already loaded modules
+        as well as all files reachable through a package.
+        """
+        # COPIED FROM: https://github.com/pallets/werkzeug/blob/master/werkzeug/_reloader.py#L12
+        # The list call is necessary on Python 3 in case the module
+        # dictionary modifies during iteration.
+        for module in list(sys.modules.values()):
+            if module is None:
+                continue
+            filename = getattr(module, '__file__', None)
+            if filename:
+                if os.path.isdir(filename) and \
+                   os.path.exists(os.path.join(filename, "__init__.py")):
+                    filename = os.path.join(filename, "__init__.py")
+                old = None
+                while not os.path.isfile(filename):
+                    old = filename
+                    filename = os.path.dirname(filename)
+                    if filename == old:
+                        break
+                else:
+                    if filename[-4:] in ('.pyc', '.pyo'):
+                        filename = filename[:-1]
+                    yield filename
 
     def _check_file(self, path):
         # type: (str) -> Set[str]
@@ -44,8 +59,8 @@ class StatFileObserver(object):
         old_mtime = self._mtimes.get(path, 0)
         if new_mtime > old_mtime:
             self._mtimes[path] = new_mtime
-            return set([path])
-        return set()
+            return True
+        return False
 
 
 class StatFileWatcher(Watcher):
@@ -61,6 +76,5 @@ class StatFileWatcher(Watcher):
         observer.check()
         while True:
             time.sleep(1)
-            changes = observer.check()
-            if changes:
+            if observer.check():
                 handler()

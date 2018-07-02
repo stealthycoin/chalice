@@ -1,3 +1,4 @@
+import sys
 import mock
 import threading
 
@@ -41,14 +42,14 @@ def assert_reload_happens(root_dir, when_modified_file, watcher):
 
 @watchdog_only
 class TestWatchdogFileWatcher(object):
-    def test_can_reload_when_file_created(self, tmpdir, watchdog_factory):
-        top_level_file = str(tmpdir.join('foo'))
+    def test_can_reload_when_file_created(self, tmpdir, watchdog_factory, monkeypatch):
+        top_level_file = str(tmpdir.join('foo.py'))
         assert_reload_happens(str(tmpdir), when_modified_file=top_level_file,
                               watcher=watchdog_factory())
 
     def test_can_reload_when_subdir_file_created(self, tmpdir,
                                                  watchdog_factory):
-        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.txt'))
+        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.py'))
         assert_reload_happens(str(tmpdir), when_modified_file=subdir_file,
                               watcher=watchdog_factory())
 
@@ -60,13 +61,21 @@ class TestWatchdogFileWatcher(object):
 
 
 class TestStatFileWatcher(object):
-    def test_can_reload_when_file_created(self, tmpdir):
-        top_level_file = str(tmpdir.join('foo'))
-        assert_reload_happens(str(tmpdir), when_modified_file=top_level_file,
+    def test_can_reload_when_file_created(self, tmpdir, monkeypatch):
+        monkeypatch.delitem(sys.modules, 'testsuite_app', raising=False)
+        app_pkg = tmpdir.mkdir('testsuite_app')
+
+        appfile = app_pkg.join('__init__.py')
+        appfile.write('')
+
+        monkeypatch.syspath_prepend(str(tmpdir))
+        import testsuite_app
+
+        assert_reload_happens(str(app_pkg), when_modified_file=str(appfile),
                               watcher=StatFileWatcher())
 
     def test_can_reload_when_subdir_file_created(self, tmpdir):
-        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.txt'))
+        subdir_file = str(tmpdir.join('subdir').mkdir().join('foo.py'))
         assert_reload_happens(str(tmpdir), when_modified_file=subdir_file,
                               watcher=StatFileWatcher())
 

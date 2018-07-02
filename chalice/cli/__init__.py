@@ -29,7 +29,7 @@ from chalice.constants import DEFAULT_STAGE_NAME
 from chalice.constants import DEFAULT_APIGATEWAY_STAGE_NAME
 from chalice.constants import DEFAULT_HANDLER_NAME
 from chalice.local import LocalDevServer  # noqa
-from chalice.compat import get_available_file_watcher
+from chalice.watcher import get_available_file_watcher
 
 
 def create_new_project_skeleton(project_name, profile=None):

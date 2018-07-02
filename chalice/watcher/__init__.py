@@ -13,3 +13,17 @@ stat and mtime to check for changed files.
 The long term plan is to tear out watchdog and replace it with something that
 is better maintained and ideally has wheels available for all common platforms.
 """
+from chalice.watcher.shared import Watcher  # noqa
+try:
+    import watchdog  # noqa
+    from chalice.watcher.eventbased import WatchdogFileWatcher
+
+    def get_available_file_watcher():
+        # type: () -> Watcher
+        return WatchdogFileWatcher()
+except ImportError:
+    from chalice.watcher.stat import StatFileWatcher
+
+    def get_available_file_watcher():
+        # type: () -> Watcher
+        return StatFileWatcher()

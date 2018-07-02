@@ -125,20 +125,3 @@ else:
         # don't want to be assuming all socket.error are broken pipes so just
         # check if the message has 'Broken pipe' in it.
         return isinstance(error, socket.error) and 'Broken pipe' in str(error)
-
-
-try:
-    import watchdog  # noqa
-    from chalice.watcher.eventbased import WatchdogFileWatcher
-    from chalice.watcher.shared import Watcher  # noqa
-
-    def get_available_file_watcher():
-        # type: () -> Watcher
-        return WatchdogFileWatcher()
-except ImportError:
-    from chalice.watcher.stat import StatFileWatcher
-    from chalice.watcher.shared import Watcher  # noqa
-
-    def get_available_file_watcher():
-        # type: () -> Watcher
-        return StatFileWatcher()
