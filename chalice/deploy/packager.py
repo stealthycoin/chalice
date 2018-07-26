@@ -287,7 +287,7 @@ class DependencyBuilder(object):
             # Deploying python 3 function which means we need cp36m abi
             # We can also accept abi3 which is the CPython 3 Stable ABI and
             # will work on any version of python 3.
-            return abi == 'cp36m' or abi == 'abi3'
+            return abi in ('cp36m', 'abi3')
         elif prefix_version == 'cp2':
             # Deploying to python 2 function which means we need cp27mu abi
             return abi == 'cp27mu'

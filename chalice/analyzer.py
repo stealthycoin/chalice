@@ -548,7 +548,7 @@ class SymbolTableTypeInfer(ast.NodeVisitor):
         # type: (ast.ClassDef) -> None
         # Not implemented yet.  We want to ensure we don't
         # traverse into the class body for now.
-        return
+        pass
 
     def visit_DictComp(self, node):
         # type: (ast.DictComp) -> None

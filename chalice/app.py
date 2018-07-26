@@ -875,7 +875,7 @@ class AuthResponse(object):
         # '/'.join(...)'d properly.
         base.extend([method, route[1:]])
         last_arn_segment = '/'.join(base)
-        if route == '/' or route == '*':
+        if route in ('/', '*'):
             # We have to special case the '/' case.  For whatever
             # reason, API gateway adds an extra '/' to the method_arn
             # of the auth request, so we need to do the same thing.
