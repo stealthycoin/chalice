@@ -101,7 +101,7 @@ from chalice.awsclient import DeploymentPackageTooLargeError, TypedAWSClient
 from chalice.awsclient import LambdaClientError, AWSClientError
 from chalice.constants import MAX_LAMBDA_DEPLOYMENT_SIZE, VPC_ATTACH_POLICY, \
     DEFAULT_LAMBDA_TIMEOUT, DEFAULT_LAMBDA_MEMORY_SIZE, LAMBDA_TRUST_POLICY, \
-    SQS_EVENT_SOURCE_POLICY, POST_TO_WEBSOCKET_CONNETION_POLICY
+    SQS_EVENT_SOURCE_POLICY, POST_TO_WEBSOCKET_CONNECTION_POLICY
 from chalice.deploy import models
 from chalice.deploy.executor import Executor
 from chalice.deploy.packager import PipRunner, SubprocessPip, \
@@ -834,7 +834,7 @@ class WebsocketPolicyInjector(BaseDeployStep):
                            models.Placeholder)):
             self._inject_policy(
                 role.policy.document,
-                POST_TO_WEBSOCKET_CONNETION_POLICY.copy())
+                POST_TO_WEBSOCKET_CONNECTION_POLICY.copy())
             self._policy_injected = True
 
     def _inject_policy(self, document, policy):

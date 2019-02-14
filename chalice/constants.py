@@ -240,7 +240,7 @@ SQS_EVENT_SOURCE_POLICY = {
 }
 
 
-POST_TO_WEBSOCKET_CONNETION_POLICY = {
+POST_TO_WEBSOCKET_CONNECTION_POLICY = {
     "Effect": "Allow",
     "Action": [
         "execute-api:ManageConnections"
