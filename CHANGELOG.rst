@@ -19,6 +19,8 @@ Next Release (TBD)
   (`#1131 <https://github.com/aws/chalice/issues/1131>`__)
 * Add layer support to chalice package
   (`#1130 <https://github.com/aws/chalice/issues/1130>`__)
+* Add support for websockets
+  (`#1017 <https://github.com/aws/chalice/issues/1017>`__)
 
 
 1.8.0
