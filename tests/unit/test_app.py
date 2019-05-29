@@ -2006,6 +2006,7 @@ def test_multidict_is_readonly():
     with pytest.raises(TypeError):
         d['key'] = 'value'
 
+
 def test_can_configure_websockets(sample_websocket_app):
     demo, _ = sample_websocket_app
 
